@@ -1,0 +1,33 @@
+[package]
+name = "monkey"
+version = "0.1.0"
+edition = "2021"
+description = "Rust transpilation of the Go Monkey interpreter (skatsuta/monkey-interpreter)"
+license = "MIT"
+
+# ---------------------------------------------------------------------------
+# Go -> Rust project mapping
+# ---------------------------------------------------------------------------
+# The Go project is a single Go *module* split into several *packages*
+# (token, lexer, ast, object, parser, eval, repl) plus a `main` package.
+#
+# Rust equivalent chosen: ONE crate that exposes a library (`src/lib.rs`) made
+# of one module per Go package, plus a thin binary (`src/main.rs`) mirroring
+# Go's `main.go`.
+#
+# Discarded alternative: a Cargo *workspace* with one crate per Go package.
+# That mirrors Go's package boundaries 1:1 but is overkill for ~2k LOC, forces
+# `pub`-everything across crate boundaries, and slows the build. A single crate
+# with modules gives the same encapsulation (module privacy) with less ceremony.
+[lib]
+name = "monkey"
+path = "src/lib.rs"
+
+[[bin]]
+name = "monkey"
+path = "src/main.rs"
+
+# No third-party dependencies: the Go code only uses the standard library
+# (fmt, bufio, hash/fnv, strconv, strings, bytes, io). Every one of those has a
+# std-library counterpart in Rust, so the port stays dependency-free.
+[dependencies]

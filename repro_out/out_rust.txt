@@ -1,0 +1,18 @@
+610
+[1, 4, 9, 16]
+15
+Monkey
+3
+abc
+11
+3.75
+3
+-3
+14
+false
+true
+false
+true
+20
+nil
+[123, 124, done]

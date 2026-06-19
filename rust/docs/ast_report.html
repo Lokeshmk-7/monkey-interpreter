@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Monkey Interpreter — Go→Rust AST &amp; Dependency Report</title>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #1a2029; --fg: #e6edf3; --muted: #8b98a5;
+    --go: #00add8; --rust: #dea584; --accent: #7ee787; --line: #2d3743;
+    --warn: #f0a868;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font: 14px/1.55 -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--fg); padding: 0 0 80px;
+  }
+  header {
+    padding: 28px 36px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg,#161c24,#0f1419);
+  }
+  header h1 { margin: 0 0 6px; font-size: 22px; }
+  header p { margin: 2px 0; color: var(--muted); }
+  main { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+  section { margin-top: 34px; }
+  h2 {
+    font-size: 17px; border-left: 3px solid var(--accent); padding-left: 10px;
+    margin: 0 0 14px;
+  }
+  .legend span { margin-right: 18px; }
+  .pill { padding: 1px 8px; border-radius: 10px; font-size: 12px; }
+  .pill.go { background: rgba(0,173,216,.15); color: var(--go); }
+  .pill.rust { background: rgba(222,165,132,.15); color: var(--rust); }
+  /* dependency graph */
+  .dag { display: flex; flex-direction: column; gap: 8px; }
+  .layer { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .layer .idx { width: 24px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .mod {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 12px; min-width: 130px;
+  }
+  .mod b { color: var(--rust); }
+  .mod small { color: var(--muted); display:block; }
+  .arrow { color: var(--muted); text-align:center; }
+  /* tree */
+  details { margin: 2px 0; }
+  details > summary {
+    cursor: pointer; list-style: none; padding: 5px 9px; border-radius: 6px;
+    background: var(--panel); border: 1px solid var(--line);
+  }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary:before { content: "▸ "; color: var(--accent); }
+  details[open] > summary:before { content: "▾ "; }
+  .children { margin-left: 18px; padding-left: 14px; border-left: 1px dashed var(--line); }
+  .node-name { color: var(--accent); font-weight: 600; }
+  .kind { color: var(--muted); font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  code { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12.5px; }
+  .go-t { color: var(--go); }
+  .rs-t { color: var(--rust); }
+  .note { color: var(--warn); font-size: 12px; }
+  .controls { margin-bottom: 10px; }
+  button {
+    background: var(--panel); color: var(--fg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 5px 10px; cursor: pointer; margin-right: 8px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Monkey Interpreter — Go → Rust transpilation report</h1>
+  <p>AST node hierarchy, package dependency graph, and the bottom-up translation order.</p>
+  <p class="legend">
+    <span class="pill go">Go source</span>
+    <span class="pill rust">Rust target</span>
+    <span class="note">▸ click any node to expand its fields and mapping</span>
+  </p>
+</header>
+<main>
+
+<section>
+  <h2>1. Package dependency graph &amp; translation order</h2>
+  <p style="color:var(--muted)">
+    Each layer depends only on the layers above it. Translation proceeds
+    <b>bottom-up</b> (layer 0 first), so every module is built and verified
+    against ported tests before anything that uses it.
+  </p>
+  <div class="dag">
+    <div class="layer"><span class="idx">0</span>
+      <div class="mod"><b>token</b><small>token/token.go</small></div>
+      <span style="color:var(--muted)">— no internal deps (leaf)</span>
+    </div>
+    <div class="arrow">↓</div>
+    <div class="layer"><span class="idx">1</span>
+      <div class="mod"><b>lexer</b><small>lexer/lexer.go → token</small></div>
+      <div class="mod"><b>ast</b><small>ast/*.go → token</small></div>
+    </div>
+    <div class="arrow">↓</div>
+    <div class="layer"><span class="idx">2</span>
+      <div class="mod"><b>object</b><small>object/*.go → ast</small></div>
+    </div>
+    <div class="arrow">↓</div>
+    <div class="layer"><span class="idx">3</span>
+      <div class="mod"><b>parser</b><small>parser/parser.go → lexer, ast, token</small></div>
+    </div>
+    <div class="arrow">↓</div>
+    <div class="layer"><span class="idx">4</span>
+      <div class="mod"><b>eval</b><small>eval/*.go → ast, object, token</small></div>
+    </div>
+    <div class="arrow">↓</div>
+    <div class="layer"><span class="idx">5</span>
+      <div class="mod"><b>repl</b><small>repl/repl.go → eval, lexer, object, parser</small></div>
+    </div>
+    <div class="arrow">↓</div>
+    <div class="layer"><span class="idx">6</span>
+      <div class="mod"><b>main</b><small>main.go → all</small></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>2. AST node hierarchy (the tree)</h2>
+  <div class="controls">
+    <button onclick="document.querySelectorAll('#tree details').forEach(d=>d.open=true)">Expand all</button>
+    <button onclick="document.querySelectorAll('#tree details').forEach(d=>d.open=false)">Collapse all</button>
+  </div>
+  <div id="tree">
+
+    <details open>
+      <summary><span class="node-name">Node</span> <span class="kind">Go interface · Rust enum</span></summary>
+      <div class="children">
+        <p class="kind">Go: <code class="go-t">interface { TokenLiteral() string; String() string }</code> &nbsp;→&nbsp;
+           Rust: <code class="rs-t">enum Node { Program, Statement, Expression }</code></p>
+
+        <details open>
+          <summary><span class="node-name">Program</span> <span class="kind">root</span></summary>
+          <div class="children">
+            <table><tr><th>field</th><th>Go type</th><th>Rust type</th></tr>
+              <tr><td>statements</td><td class="go-t">[]Statement</td><td class="rs-t">Vec&lt;Statement&gt;</td></tr>
+            </table>
+          </div>
+        </details>
+
+        <details>
+          <summary><span class="node-name">Statement</span> <span class="kind">Go interface · Rust enum (4 variants)</span></summary>
+          <div class="children">
+            <details><summary><span class="node-name">LetStatement</span></summary><div class="children">
+              <table><tr><th>field</th><th>Go</th><th>Rust</th></tr>
+                <tr><td>token</td><td class="go-t">token.Token</td><td class="rs-t">Token</td></tr>
+                <tr><td>name</td><td class="go-t">*Ident</td><td class="rs-t">Ident</td></tr>
+                <tr><td>value</td><td class="go-t">Expression</td><td class="rs-t">Expression</td></tr>
+              </table></div></details>
+            <details><summary><span class="node-name">ReturnStatement</span></summary><div class="children">
+              <table><tr><th>field</th><th>Go</th><th>Rust</th></tr>
+                <tr><td>return_value</td><td class="go-t">Expression</td><td class="rs-t">Expression</td></tr>
+              </table></div></details>
+            <details><summary><span class="node-name">ExpressionStatement</span></summary><div class="children">
+              <table><tr><th>field</th><th>Go</th><th>Rust</th></tr>
+                <tr><td>expression</td><td class="go-t">Expression</td><td class="rs-t">Expression</td></tr>
+              </table></div></details>
+            <details><summary><span class="node-name">BlockStatement</span> <span class="note">(Go quirk: has expressionNode())</span></summary><div class="children">
+              <table><tr><th>field</th><th>Go</th><th>Rust</th></tr>
+                <tr><td>statements</td><td class="go-t">[]Statement</td><td class="rs-t">Vec&lt;Statement&gt;</td></tr>
+              </table></div></details>
+          </div>
+        </details>
+
+        <details>
+          <summary><span class="node-name">Expression</span> <span class="kind">Go interface · Rust enum (14 variants)</span></summary>
+          <div class="children">
+            <details><summary><span class="node-name">Ident</span></summary><div class="children"><code>value: String</code></div></details>
+            <details><summary><span class="node-name">IntegerLiteral</span></summary><div class="children"><code>value: <span class="go-t">int64</span> → <span class="rs-t">i64</span></code></div></details>
+            <details><summary><span class="node-name">FloatLiteral</span></summary><div class="children"><code>value: <span class="go-t">float64</span> → <span class="rs-t">f64</span></code> <span class="note">(PartialEq only — f64 is not Eq)</span></div></details>
+            <details><summary><span class="node-name">PrefixExpression</span></summary><div class="children"><code>operator: String, right: <span class="rs-t">Box&lt;Expression&gt;</span></code></div></details>
+            <details><summary><span class="node-name">InfixExpression</span></summary><div class="children"><code>left: <span class="rs-t">Box&lt;Expression&gt;</span>, operator, right: <span class="rs-t">Box&lt;Expression&gt;</span></code></div></details>
+            <details><summary><span class="node-name">Boolean</span></summary><div class="children"><code>value: bool</code></div></details>
+            <details><summary><span class="node-name">IfExpression</span></summary><div class="children"><code>condition: <span class="rs-t">Box&lt;Expression&gt;</span>, consequence: BlockStatement, alternative: <span class="rs-t">Option&lt;BlockStatement&gt;</span></code> <span class="note">(Go nil *BlockStatement → Option)</span></div></details>
+            <details><summary><span class="node-name">FunctionLiteral</span></summary><div class="children"><code>parameters: <span class="go-t">[]*Ident</span> → <span class="rs-t">Vec&lt;Ident&gt;</span>, body: BlockStatement</code></div></details>
+            <details><summary><span class="node-name">CallExpression</span></summary><div class="children"><code>function: <span class="rs-t">Box&lt;Expression&gt;</span>, arguments: Vec&lt;Expression&gt;</code></div></details>
+            <details><summary><span class="node-name">StringLiteral</span></summary><div class="children"><code>value: String</code></div></details>
+            <details><summary><span class="node-name">ArrayLiteral</span></summary><div class="children"><code>elements: Vec&lt;Expression&gt;</code></div></details>
+            <details><summary><span class="node-name">IndexExpression</span></summary><div class="children"><code>left: <span class="rs-t">Box&lt;Expression&gt;</span>, index: <span class="rs-t">Box&lt;Expression&gt;</span></code></div></details>
+            <details><summary><span class="node-name">HashLiteral</span></summary><div class="children"><code>pairs: <span class="go-t">map[Expression]Expression</span> → <span class="rs-t">Vec&lt;(Expression, Expression)&gt;</span></code> <span class="note">(Expression can't be a Hash key; Vec also makes String() deterministic)</span></div></details>
+            <details><summary><span class="node-name">MacroLiteral</span></summary><div class="children"><code>parameters: Vec&lt;Ident&gt;, body: BlockStatement</code></div></details>
+          </div>
+        </details>
+      </div>
+    </details>
+  </div>
+</section>
+
+<section>
+  <h2>3. Object model (runtime values)</h2>
+  <div id="objtree">
+    <details open>
+      <summary><span class="node-name">Object</span> <span class="kind">Go interface · Rust enum</span></summary>
+      <div class="children">
+        <table>
+          <tr><th>Variant</th><th>Go</th><th>Rust payload</th><th>Notes</th></tr>
+          <tr><td>Integer</td><td class="go-t">*Integer</td><td class="rs-t">i64</td><td></td></tr>
+          <tr><td>Float</td><td class="go-t">*Float</td><td class="rs-t">f64</td><td></td></tr>
+          <tr><td>Boolean</td><td class="go-t">*Boolean</td><td class="rs-t">bool</td><td>singletons dropped (value eq)</td></tr>
+          <tr><td>Nil</td><td class="go-t">*Nil</td><td class="rs-t">(unit)</td><td>NilValue singleton dropped</td></tr>
+          <tr><td>ReturnValue</td><td class="go-t">*ReturnValue</td><td class="rs-t">Box&lt;Object&gt;</td><td></td></tr>
+          <tr><td>Error</td><td class="go-t">*Error</td><td class="rs-t">String</td><td></td></tr>
+          <tr><td>Function</td><td class="go-t">*Function</td><td class="rs-t">Rc&lt;Function&gt;</td><td>captures Env</td></tr>
+          <tr><td>Str</td><td class="go-t">*String</td><td class="rs-t">String</td><td>renamed to avoid std::String clash</td></tr>
+          <tr><td>Builtin</td><td class="go-t">*Builtin</td><td class="rs-t">fn(Vec&lt;Object&gt;)→Object</td><td></td></tr>
+          <tr><td>Array</td><td class="go-t">*Array</td><td class="rs-t">Rc&lt;Vec&lt;Object&gt;&gt;</td><td></td></tr>
+          <tr><td>Hash</td><td class="go-t">*Hash</td><td class="rs-t">Rc&lt;HashObj&gt;</td><td>HashMap&lt;HashKey,HashPair&gt;</td></tr>
+          <tr><td>Quote</td><td class="go-t">*Quote</td><td class="rs-t">Box&lt;ast::Node&gt;</td><td></td></tr>
+          <tr><td>Macro</td><td class="go-t">*Macro</td><td class="rs-t">Rc&lt;Macro&gt;</td><td>captures Env</td></tr>
+        </table>
+        <p class="kind">Environment: <code class="go-t">interface{Get,Set}</code> → <code class="rs-t">Rc&lt;RefCell&lt;Environment&gt;&gt;</code> (shared interior-mutable scope for closures).</p>
+      </div>
+    </details>
+  </div>
+</section>
+
+<section>
+  <h2>4. Cross-cutting idiom map</h2>
+  <table>
+    <tr><th>Go idiom</th><th>Rust translation</th><th>Discarded alternative</th></tr>
+    <tr><td>interface + type switch</td><td>enum + match (exhaustive)</td><td>Box&lt;dyn Trait&gt; + Any downcast</td></tr>
+    <tr><td>nullable interface return</td><td>Option&lt;T&gt;</td><td>sentinel value</td></tr>
+    <tr><td>map[Type]methodValue dispatch</td><td>match dispatch</td><td>HashMap&lt;_,fn&gt; (borrow conflict)</td></tr>
+    <tr><td>iota const ladder</td><td>enum + derive(Ord)</td><td>i32 constants</td></tr>
+    <tr><td>pointer-shared mutable scope</td><td>Rc&lt;RefCell&lt;_&gt;&gt;</td><td>Box / Arc&lt;Mutex&gt;</td></tr>
+    <tr><td>string-typed const enums</td><td>enum + as_str()/Display</td><td>newtype(String)</td></tr>
+    <tr><td>hash/fnv.New64a</td><td>hand-written FNV-1a</td><td>fnv crate</td></tr>
+  </table>
+</section>
+
+</main>
+</body>
+</html>
